@@ -1,0 +1,62 @@
+# Compila l'app Android a ogni modifica e pubblica l'APK tra le "Releases" del repository.
+name: App Android
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - 'index.html'
+      - 'css/**'
+      - 'js/**'
+      - 'data/**'
+      - 'vendor/**'
+      - 'icons/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android
+  cancel-in-progress: true
+
+jobs:
+  compila:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Compila l'APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace assembleDebug
+
+      - name: Prepara il file
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk raccoglitore.apk
+          ls -la raccoglitore.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: raccoglitore-apk
+          path: raccoglitore.apk
+
+      - name: Pubblica tra le Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTE="App Android compilata in automatico dal codice del repository (commit ${GITHUB_SHA::7}). Scarica raccoglitore.apk sul telefono e aprilo per installarla."
+          if gh release view android-ultima >/dev/null 2>&1; then
+            gh release upload android-ultima raccoglitore.apk --clobber
+            gh release edit android-ultima --notes "$NOTE"
+          else
+            gh release create android-ultima raccoglitore.apk --title "App Android, ultima versione" --notes "$NOTE"
+          fi

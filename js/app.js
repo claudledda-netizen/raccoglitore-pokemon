@@ -527,7 +527,24 @@
   }
   function root_ExcelJS() { return window.ExcelJS || null; }
   const oggi = () => { const d = new Date(), z = (n) => String(n).padStart(2, '0'); return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()); };
-  function scarica(blob, nome) {
+  // Dentro l'app Android i file non si scaricano come nel browser: passano al telefono a pezzi
+  const NATIVO = !!(window.AndroidApp && window.AndroidApp.inizia);
+  async function versoAndroid(blob, nome, modo) {
+    const id = window.AndroidApp.inizia(nome);
+    if (!id) throw new Error('il telefono non ha accettato il file');
+    const dati = new Uint8Array(await blob.arrayBuffer());
+    const PASSO = 384 * 1024;
+    for (let o = 0; o < dati.length; o += PASSO) {
+      const pezzo = dati.subarray(o, o + PASSO);
+      let bin = '';
+      for (let i = 0; i < pezzo.length; i += 0x8000) bin += String.fromCharCode.apply(null, pezzo.subarray(i, i + 0x8000));
+      if (!window.AndroidApp.aggiungi(id, btoa(bin))) throw new Error('scrittura del file non riuscita');
+    }
+    const esito = window.AndroidApp.concludi(id, blob.type || 'application/octet-stream', modo);
+    if (esito !== 'ok') throw new Error(esito);
+  }
+  async function scarica(blob, nome) {
+    if (NATIVO) return versoAndroid(blob, nome, 'salva');
     const url = URL.createObjectURL(blob);
     const a = el('a', { href: url, download: nome });
     document.body.appendChild(a); a.click(); a.remove();
@@ -543,7 +560,7 @@
     // la condivisione di file esiste solo su alcuni telefoni e browser
     let puo = false;
     try { puo = !!(navigator.canShare && navigator.canShare({ files: [new File(['x'], 'x.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })] })); } catch (e) { puo = false; }
-    $('condividi-excel').hidden = !puo;
+    $('condividi-excel').hidden = !(puo || NATIVO);
     statoEsporta('');
   }
   async function creaExcel() {
@@ -557,7 +574,10 @@
     statoEsporta('Preparo il file Excel');
     try {
       const f = await creaExcel();
-      if (condividi) {
+      if (condividi && NATIVO) {
+        await versoAndroid(f.blob, f.nome, 'condividi');
+        statoEsporta('File Excel pronto da condividere: ' + f.nome);
+      } else if (condividi) {
         try {
           await navigator.share({ files: [new File([f.blob], f.nome, { type: f.blob.type })], title: 'Raccoglitore' });
           statoEsporta('File Excel condiviso: ' + f.nome);
@@ -566,7 +586,7 @@
           throw e;
         }
       } else {
-        scarica(f.blob, f.nome);
+        await scarica(f.blob, f.nome);
         statoEsporta('File Excel scaricato: ' + f.nome + ' (' + f.totali.righe + ' righe, valore ' + Prices.eur(f.totali.valore) + '). Lo trovi tra i download del telefono.');
       }
     } catch (e) {
@@ -579,7 +599,7 @@
     try {
       const items = await Store.all();
       const blob = await Esporta.toBackupBlob(items);
-      scarica(blob, 'raccoglitore-copia-' + oggi() + '.json');
+      await scarica(blob, 'raccoglitore-copia-' + oggi() + '.json');
       statoEsporta('Copia dei dati scaricata: ' + items.length + (items.length === 1 ? ' carta' : ' carte diverse') + ', ' + (blob.size / 1048576).toFixed(1).replace('.', ',') + ' MB. Conservala fuori dal telefono.');
     } catch (e) {
       console.error(e);
@@ -782,11 +802,21 @@
     OcrEngine.load().catch(() => {});
   }
 
-  // memoria per l'uso senza rete (solo su indirizzo sicuro)
-  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  // memoria per l'uso senza rete (solo su indirizzo sicuro; nell'app Android i file sono già dentro l'app)
+  if (!(window.AndroidApp && window.AndroidApp.inizia) && 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
     navigator.serviceWorker.register('sw.js').catch((e) => console.warn('Service worker non registrato', e));
   }
 
-  window.App = { get index() { return IX; } };
+  // Tasto indietro del telefono (app Android): chiude il dettaglio o torna alla schermata di scatto.
+  // Restituisce false quando non c'è più niente da chiudere, e allora l'app esce.
+  function indietro() {
+    if ($('dettaglio').open) { $('dettaglio').close('chiudi'); return true; }
+    if (!$('vista-ricerca').hidden) { mostra(ritornoRicerca === 'conferma' && corrente ? 'conferma' : 'scansiona'); return true; }
+    if (!$('vista-lettura').hidden) return true; // lettura in corso: resto qui
+    if ($('vista-scansiona').hidden) { if (!$('vista-conferma').hidden) corrente = null; mostra('scansiona'); return true; }
+    return false;
+  }
+
+  window.App = { get index() { return IX; }, indietro };
   avvio();
 })();

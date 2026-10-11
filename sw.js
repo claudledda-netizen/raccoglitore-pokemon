@@ -2,7 +2,7 @@
 // Due memorie separate: quella del lettore (28 MB, non cambia e non va riscaricata a ogni
 // aggiornamento) e quella della pagina, che si rinnova quando cambia la versione.
 const PESANTE = 'raccoglitore-v1';
-const VERSIONE = 'raccoglitore-guscio-v4';
+const VERSIONE = 'raccoglitore-guscio-v5';
 const GUSCIO = ['./', 'index.html', 'css/app.css', 'js/vision.js', 'js/match.js', 'js/recog.js', 'js/ocr-engine.js', 'js/db.js', 'js/prices.js', 'js/export.js', 'js/app.js',
   'manifest.webmanifest', 'icons/icona-192.png'];
 

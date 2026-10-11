@@ -8,6 +8,10 @@ App web per telefono che fotografa una carta collezionabile, la riconosce e la a
 - La collezione si esporta in Excel e si salva in una copia di sicurezza.
 - Funziona da browser e si può aggiungere alla schermata Home.
 
+## App Android
+
+La cartella `android` contiene il progetto Android Studio che racchiude questa stessa app. Vedi [android/README.md](android/README.md).
+
 ## Componenti di terze parti
 
 | Componente | Uso | Licenza |
