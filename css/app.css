@@ -178,3 +178,27 @@ select:invalid { color: var(--attenuato); }
 }
 .avviso.errore { background: var(--pericolo); color: #fff; }
 @media (prefers-color-scheme: dark) { .avviso { background: #e9edf5; color: #14213d; } .avviso.errore { background: #ff8a80; color: #2b0000; } }
+
+/* Quotazione: tre cartellini, minimo media massimo */
+.quotazione { margin-top: 0.9rem; }
+.quotazione-celle { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
+.cella { background: var(--tasca); border: 1.5px solid var(--riga); border-radius: var(--raggio); padding: 0.5rem 0.6rem; min-width: 0; }
+.cella-media { border-color: var(--cartellino); box-shadow: inset 0 3px 0 var(--cartellino); }
+.cella-nome { font-size: 0.78rem; color: var(--attenuato); font-weight: 600; }
+.cella-valore { display: block; font-size: 1.15rem; font-weight: 800; font-stretch: 78%; font-variant-numeric: tabular-nums; line-height: 1.25; white-space: nowrap; }
+.cella-fonte { font-size: 0.7rem; color: var(--attenuato); }
+.quotazione-nota { margin-top: 0.4rem; font-size: 0.8rem; color: var(--attenuato); }
+.quotazione-stato { font-size: 0.9rem; color: var(--attenuato); }
+.valore { font-weight: 650; font-size: 0.95rem; }
+input[type="text"] {
+  width: 100%; min-height: 3rem; padding: 0.55rem 0.75rem;
+  font: inherit; font-weight: 500; font-size: 1rem; color: var(--inchiostro);
+  background: var(--tasca); border: 1.5px solid var(--riga); border-radius: var(--raggio);
+}
+input[type="text"]:invalid { border-color: var(--pericolo); }
+input::placeholder { color: var(--attenuato); opacity: 1; font-weight: 400; font-size: 0.9rem; }
+.strumenti { display: grid; gap: 0.4rem; margin-bottom: 1rem; }
+.strumenti-stato { font-size: 0.85rem; color: var(--attenuato); }
+.tasca-prezzo { font-size: 0.85rem; font-weight: 800; font-stretch: 78%; font-variant-numeric: tabular-nums; }
+.tasca-prezzo.assente { font-weight: 500; font-stretch: 100%; font-size: 0.72rem; color: var(--attenuato); }
+.dettaglio { overflow-y: auto; }

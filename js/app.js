@@ -94,6 +94,76 @@
     return new Promise((res) => out.toBlob(res, 'image/jpeg', 0.86));
   }
 
+  // ---------- quotazioni ----------
+  const rispostePrezzi = new Map(); // cardId -> Promise della scheda scaricata
+  function scaricaPrezzi(cardId, forza) {
+    if (forza || !rispostePrezzi.has(cardId)) {
+      const p = Prices.fetchCard(cardId);
+      p.catch(() => { if (rispostePrezzi.get(cardId) === p) rispostePrezzi.delete(cardId); });
+      rispostePrezzi.set(cardId, p);
+    }
+    return rispostePrezzi.get(cardId);
+  }
+  function messaggioPrezzi(e) {
+    if (!navigator.onLine) return 'Quotazione non disponibile: il telefono è senza rete.';
+    if (e && e.status === 404) return 'Questa carta non è presente nella fonte dei prezzi.';
+    return 'Quotazione non scaricata: ' + (e && e.message ? e.message : 'errore di rete') + '.';
+  }
+  // Tre cartellini: minimo e media da Cardmarket in euro, massimo da TCGplayer in dollari
+  function bloccoQuotazione(pr) {
+    if (!pr || (!pr.eur && !pr.usd)) return el('div', { class: 'quotazione' }, [el('p', { class: 'quotazione-stato', text: 'Nessuna quotazione trovata per questa carta e variante.' })]);
+    const cella = (nome, valore, fonte, cls) => el('div', { class: 'cella' + (cls ? ' ' + cls : '') }, [
+      el('span', { class: 'cella-nome', text: nome }), el('span', { class: 'cella-valore', text: valore }), el('span', { class: 'cella-fonte', text: fonte })
+    ]);
+    const note = [];
+    const quando = [pr.eur && pr.eur.aggiornato ? 'Cardmarket del ' + Prices.day(pr.eur.aggiornato) : '', pr.usd && pr.usd.aggiornato ? 'TCGplayer del ' + Prices.day(pr.usd.aggiornato) : ''].filter(Boolean).join(', ');
+    if (quando) note.push('Prezzi ' + quando + '.');
+    if (pr.eur && pr.eur.tendenza !== null) note.push('Tendenza Cardmarket ' + Prices.eur(pr.eur.tendenza) + '.');
+    if (pr.nota) note.push(pr.nota);
+    return el('div', { class: 'quotazione' }, [
+      el('div', { class: 'quotazione-celle' }, [
+        cella('Minimo', Prices.eur(pr.eur ? pr.eur.min : null), 'Cardmarket'),
+        cella('Media', Prices.eur(pr.eur ? pr.eur.media : null), 'Cardmarket', 'cella-media'),
+        cella('Massimo', Prices.usd(pr.usd ? pr.usd.max : null), 'TCGplayer')
+      ]),
+      el('p', { class: 'quotazione-nota', text: note.join(' ') })
+    ]);
+  }
+  function testoValore(item) {
+    const v = Prices.value(item);
+    if (v.eur === null) return 'Senza quotazione in euro: questa carta non entra nel valore della collezione finché non inserisci un prezzo a mano.';
+    const q = item.qty || 1;
+    return 'Valore usato: ' + Prices.eur(v.eur) + ' a carta (' + (v.fonte === 'manuale' ? 'prezzo corretto a mano' : 'media Cardmarket') + ')' + (q > 1 ? ', ' + Prices.eur(v.eur * q) + ' per ' + q + ' copie.' : '.');
+  }
+  // Quotazione nella schermata di conferma: si aggiorna quando cambiano carta, variante o edizione
+  async function quotazioneConferma() {
+    const box = $('conferma-quotazione');
+    if (!corrente || !corrente.card) { box.replaceChildren(); return; }
+    const card = corrente.card, variante = $('f-variante').value;
+    const edizione = $('riga-edizione').hidden ? '' : $('f-edizione').value;
+    corrente.prezzi = null;
+    if (!variante) { box.replaceChildren(el('p', { class: 'quotazione-stato', text: 'Scegli la variante per vedere la quotazione.' })); return; }
+    box.replaceChildren(el('p', { class: 'quotazione-stato', text: 'Cerco la quotazione' }));
+    try {
+      const json = await scaricaPrezzi(card.id);
+      if (!corrente || corrente.card !== card || $('f-variante').value !== variante) return; // nel frattempo è cambiata la scelta
+      corrente.prezzi = Prices.extract(json, variante, edizione);
+      box.replaceChildren(bloccoQuotazione(corrente.prezzi));
+    } catch (e) {
+      if (corrente && corrente.card === card) box.replaceChildren(el('p', { class: 'quotazione-stato', text: messaggioPrezzi(e) + ' Puoi aggiungere la carta lo stesso e aggiornare la quotazione dopo.' }));
+    }
+  }
+  // Scarica e salva la quotazione di una carta già in collezione
+  async function aggiornaPrezziDi(item, forza) {
+    const json = await scaricaPrezzi(item.cardId, forza);
+    item.prices = Prices.extract(json, item.variant, item.edition);
+    const attuale = await Store.get(item.id);
+    if (!attuale) return null; // tolta nel frattempo
+    attuale.prices = item.prices;
+    await Store.put(attuale);
+    return item.prices;
+  }
+
   // ---------- menu a tendina ----------
   function riempi(select, voci, valore, segnaposto) {
     select.replaceChildren();
@@ -147,6 +217,7 @@
       $('conferma-ufficiale').replaceChildren(el('div', { class: 'segnaposto', text: 'Nessuna carta trovata' }));
       $('candidati').replaceChildren();
       $('modulo').hidden = true;
+      $('conferma-quotazione').replaceChildren();
       mostra('conferma');
       return;
     }
@@ -185,6 +256,7 @@
     $('f-edizione').value = 'illimitata';
     riempi($('f-condizione'), CONDIZIONI, prefs.condizione || 'NM');
     riempi($('f-quantita'), vociQuantita(), '1');
+    quotazioneConferma();
   }
 
   function rigaCandidato(card, lang, scelto, onClick, extra) {
@@ -230,10 +302,10 @@
       condition: $('f-condizione').value, qty: parseInt($('f-quantita').value, 10) || 1,
       photo: corrente.photoBlob || null, addedAt: new Date().toISOString(),
       recog: corrente.result ? { sure: !!(corrente.result.sure && voce === corrente.result.list[0]), why: voce ? voce.why : ['scelta a mano'] } : { sure: false, why: ['scelta a mano'] },
-      prices: null, manualPrice: null
+      prices: corrente.prezzi || null, manualPrice: null
     };
     try {
-      await Store.add(item);
+      item.id = await Store.add(item);
     } catch (e) {
       console.error(e);
       avviso('Non sono riuscito a salvare la carta sul telefono: ' + (e && e.message ? e.message : e), true);
@@ -244,6 +316,8 @@
     corrente = null;
     await aggiornaConto();
     avviso('Aggiunta alla collezione: ' + item.name);
+    // se la quotazione non era ancora arrivata la recupero in sottofondo
+    if (!item.prices) aggiornaPrezziDi(item, false).catch(() => {});
     mostra('scansiona');
   }
 
@@ -296,6 +370,7 @@
   async function disegnaCollezione() {
     const items = await aggiornaConto();
     $('collezione-vuota').hidden = items.length > 0;
+    $('strumenti').hidden = items.length === 0;
     const g = $('griglia');
     g.replaceChildren();
     items.sort((a, b) => (b.addedAt || '').localeCompare(a.addedAt || ''));
@@ -309,7 +384,8 @@
       g.appendChild(el('button', { type: 'button', class: 'tasca', 'aria-label': it.name + ', apri i dettagli', onclick: () => apriDettaglio(it.id) }, [
         img,
         el('span', { class: 'tasca-nome', text: it.name }),
-        el('span', { class: 'tasca-info', text: it.localId + (it.setTotal ? '/' + it.setTotal : '') + (it.qty > 1 ? '  ×' + it.qty : '') })
+        el('span', { class: 'tasca-info', text: it.localId + (it.setTotal ? '/' + it.setTotal : '') + (it.qty > 1 ? '  ×' + it.qty : '') }),
+        (() => { const v = Prices.value(it); return el('span', { class: 'tasca-prezzo' + (v.eur === null ? ' assente' : ''), text: v.eur === null ? 'senza quotazione' : Prices.eur(v.eur) }); })()
       ]));
     }
   }
@@ -329,7 +405,67 @@
     riempi($('d-variante'), vv, it.variant);
     riempi($('d-condizione'), CONDIZIONI, it.condition);
     riempi($('d-quantita'), vociQuantita(), String(it.qty || 1));
+    $('d-prezzo').value = typeof it.manualPrice === 'number' ? String(it.manualPrice).replace('.', ',') : '';
+    disegnaQuotazioneDettaglio();
     $('dettaglio').showModal();
+  }
+  function disegnaQuotazioneDettaglio(stato) {
+    const it = inDettaglio;
+    if (!it) return;
+    $('d-quotazione').replaceChildren(stato ? el('p', { class: 'quotazione-stato', text: stato }) : it.prices ? bloccoQuotazione(it.prices) : el('p', { class: 'quotazione-stato', text: 'Quotazione non ancora scaricata.' }));
+    $('d-valore').textContent = testoValore(Object.assign({}, it, { manualPrice: leggiPrezzoManuale(), qty: parseInt($('d-quantita').value, 10) || 1 }));
+  }
+  function leggiPrezzoManuale() {
+    const t = $('d-prezzo').value.trim().replace(',', '.');
+    if (t === '') return null;
+    const n = Number(t);
+    return isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null;
+  }
+  async function aggiornaDettaglio() {
+    const it = inDettaglio;
+    if (!it) return;
+    // la quotazione segue la variante scelta ora nel menu; se è diversa da quella salvata
+    // resta provvisoria finché non si salvano le modifiche
+    const variante = $('d-variante').value;
+    disegnaQuotazioneDettaglio('Cerco la quotazione');
+    try {
+      const json = await scaricaPrezzi(it.cardId, true);
+      if (inDettaglio !== it) return;
+      it.prices = Prices.extract(json, variante, it.edition);
+      if (variante === it.variant) {
+        const attuale = await Store.get(it.id);
+        if (attuale) { attuale.prices = it.prices; await Store.put(attuale); }
+      }
+      if (inDettaglio === it) disegnaQuotazioneDettaglio();
+    } catch (e) {
+      if (inDettaglio === it) disegnaQuotazioneDettaglio(messaggioPrezzi(e));
+    }
+  }
+  let aggiornamentoInCorso = false;
+  async function aggiornaTutte() {
+    if (aggiornamentoInCorso) return;
+    aggiornamentoInCorso = true;
+    const b = $('aggiorna-tutte'), stato = $('aggiorna-stato');
+    b.disabled = true;
+    const items = await Store.all();
+    let fatti = 0, falliti = 0, senza = 0;
+    // tre richieste alla volta, per non sovraccaricare la fonte
+    const coda = items.slice();
+    const lavora = async () => {
+      for (;;) {
+        const it = coda.shift();
+        if (!it) return;
+        try { const pr = await aggiornaPrezziDi(it, true); if (pr && !pr.eur && !pr.usd) senza++; }
+        catch (e) { falliti++; }
+        fatti++;
+        stato.textContent = 'Aggiorno le quotazioni: ' + fatti + ' di ' + items.length;
+      }
+    };
+    await Promise.all([lavora(), lavora(), lavora()]);
+    aggiornamentoInCorso = false; b.disabled = false;
+    await disegnaCollezione();
+    stato.textContent = falliti === items.length && items.length ? (navigator.onLine ? 'Nessuna quotazione scaricata: la fonte dei prezzi non risponde.' : 'Nessuna quotazione scaricata: il telefono è senza rete.')
+      : 'Quotazioni aggiornate: ' + (items.length - falliti) + ' di ' + items.length + (falliti ? ', ' + falliti + ' non riuscite' : '') + (senza ? ', ' + senza + ' senza prezzo nella fonte' : '') + '.';
   }
   async function chiudiDettaglio() {
     const d = $('dettaglio');
@@ -338,11 +474,16 @@
       const card = IX.cards.find((c) => c.id === it.cardId);
       it.lang = $('d-lingua').value;
       if (card) it.name = Match.displayName(card, it.lang);
-      it.variant = $('d-variante').value;
+      const varianteNuova = $('d-variante').value;
+      const cambiata = !it.prices || it.prices.variante !== varianteNuova;
+      it.variant = varianteNuova;
       it.condition = $('d-condizione').value;
       it.qty = parseInt($('d-quantita').value, 10) || 1;
+      it.manualPrice = leggiPrezzoManuale();
       await Store.put(it);
       avviso('Modifiche salvate');
+      // variante diversa: la quotazione salvata non vale più, la riallineo
+      if (cambiata) { try { await aggiornaPrezziDi(it, false); } catch (e) { /* resta quella vecchia, si può aggiornare a mano */ } }
     }
     d.returnValue = '';
     inDettaglio = null;
@@ -401,6 +542,11 @@
     $('vai-scansiona').addEventListener('click', () => mostra('scansiona'));
     $('dettaglio').addEventListener('close', chiudiDettaglio);
     $('d-elimina').addEventListener('click', eliminaCorrente);
+    $('d-aggiorna').addEventListener('click', aggiornaDettaglio);
+    $('aggiorna-tutte').addEventListener('click', aggiornaTutte);
+    for (const id of ['d-prezzo', 'd-quantita']) $(id).addEventListener('input', () => disegnaQuotazioneDettaglio());
+    $('f-variante').addEventListener('change', quotazioneConferma);
+    $('f-edizione').addEventListener('change', quotazioneConferma);
     OcrEngine.onState(statoLettore);
 
     aggiornaConto().catch((e) => { console.error(e); avviso('La memoria del telefono non è accessibile: le carte non verranno salvate.', true); });

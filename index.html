@@ -59,6 +59,7 @@
       </figure>
     </div>
     <div class="scheda" id="scheda"></div>
+    <div id="conferma-quotazione"></div>
     <div id="candidati" class="candidati"></div>
     <button type="button" class="pulsante pulsante-testo" id="altra-carta">Non è questa: cerca a mano</button>
 
@@ -112,6 +113,10 @@
       <p>Nessuna carta ancora. Fotografa la prima per iniziare il raccoglitore.</p>
       <button type="button" class="pulsante pulsante-primario" id="vai-scansiona">Fotografa una carta</button>
     </div>
+    <div class="strumenti" id="strumenti" hidden>
+      <button type="button" class="pulsante pulsante-secondario" id="aggiorna-tutte">Aggiorna tutte le quotazioni</button>
+      <p class="strumenti-stato" id="aggiorna-stato" role="status"></p>
+    </div>
     <div id="griglia" class="griglia"></div>
   </section>
 </main>
@@ -134,6 +139,12 @@
     <label>Variante <select id="d-variante"></select></label>
     <label>Condizione <select id="d-condizione"></select></label>
     <label>Quantità <select id="d-quantita"></select></label>
+    <div id="d-quotazione"></div>
+    <button type="button" class="pulsante pulsante-secondario" id="d-aggiorna">Aggiorna la quotazione</button>
+    <label>Prezzo corretto a mano, in euro per carta
+      <input type="text" id="d-prezzo" inputmode="decimal" placeholder="Vuoto: vale la media Cardmarket" pattern="[0-9]+([.,][0-9]{1,2})?">
+    </label>
+    <p class="valore" id="d-valore"></p>
     <div class="azioni">
       <button type="submit" value="salva" class="pulsante pulsante-primario">Salva le modifiche</button>
       <button type="submit" value="chiudi" class="pulsante pulsante-secondario" formnovalidate>Chiudi</button>
@@ -151,6 +162,7 @@
 <script src="js/recog.js"></script>
 <script src="js/ocr-engine.js"></script>
 <script src="js/db.js"></script>
+<script src="js/prices.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

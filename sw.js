@@ -1,13 +1,16 @@
 // Service worker: tiene in memoria l'app per usarla senza rete e per non riscaricare il lettore.
-const VERSIONE = 'raccoglitore-v1';
-const GUSCIO = ['./', 'index.html', 'css/app.css', 'js/vision.js', 'js/match.js', 'js/recog.js', 'js/ocr-engine.js', 'js/db.js', 'js/app.js',
-  'vendor/fonts/archivo-latin-wdth-normal.woff2', 'manifest.webmanifest', 'icons/icona-192.png'];
+// Due memorie separate: quella del lettore (28 MB, non cambia e non va riscaricata a ogni
+// aggiornamento) e quella della pagina, che si rinnova quando cambia la versione.
+const PESANTE = 'raccoglitore-v1';
+const VERSIONE = 'raccoglitore-guscio-v2';
+const GUSCIO = ['./', 'index.html', 'css/app.css', 'js/vision.js', 'js/match.js', 'js/recog.js', 'js/ocr-engine.js', 'js/db.js', 'js/prices.js', 'js/app.js',
+  'manifest.webmanifest', 'icons/icona-192.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(VERSIONE).then((c) => c.addAll(GUSCIO)).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== VERSIONE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== VERSIONE && k !== PESANTE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 self.addEventListener('fetch', (e) => {
   const req = e.request;
@@ -17,7 +20,7 @@ self.addEventListener('fetch', (e) => {
   const pesante = /\/(vendor|data)\//.test(url.pathname);
   if (pesante) {
     // lettore ed elenco carte: prima la memoria, la rete solo la prima volta
-    e.respondWith(caches.open(VERSIONE).then(async (c) => {
+    e.respondWith(caches.open(PESANTE).then(async (c) => {
       const hit = await c.match(req);
       if (hit) return hit;
       const res = await fetch(req);
