@@ -27,15 +27,16 @@
   const salvaPrefs = () => { try { localStorage.setItem('prefs', JSON.stringify(prefs)); } catch (e) { /* senza memoria locale si riparte dai valori predefiniti */ } };
 
   // ---------- viste ----------
-  const VISTE = ['scansiona', 'lettura', 'conferma', 'ricerca', 'collezione'];
+  const VISTE = ['scansiona', 'lettura', 'conferma', 'ricerca', 'collezione', 'esporta'];
   function mostra(v) {
     for (const n of VISTE) $('vista-' + n).hidden = n !== v;
     for (const b of document.querySelectorAll('.navigazione button')) {
-      const attiva = b.dataset.vista === (v === 'collezione' ? 'collezione' : 'scansiona');
+      const attiva = b.dataset.vista === (v === 'collezione' || v === 'esporta' ? v : 'scansiona');
       if (attiva) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
     }
     window.scrollTo(0, 0);
     if (v === 'collezione') disegnaCollezione();
+    if (v === 'esporta') disegnaEsporta();
   }
   let avvisoTimer = null;
   function avviso(testo, errore) {
@@ -367,11 +368,11 @@
     for (const it of items) {
       const q = it.qty || 1, v = Prices.value(it);
       carte += q;
+      // somma dei prezzi minimi: stessa regola del file Excel (minimo Cardmarket per quantità)
+      if (it.prices && it.prices.eur && typeof it.prices.eur.min === 'number') minimo += it.prices.eur.min * q;
       if (v.eur === null) { senza += q; continue; }
       valore += v.eur * q;
       if (v.fonte === 'manuale') aMano += q;
-      const m = it.prices && it.prices.eur && it.prices.eur.min !== null ? it.prices.eur.min : v.eur;
-      minimo += Math.min(m, v.eur) * q;
     }
     return { carte, valore, minimo, senza, aMano };
   }
@@ -501,11 +502,105 @@
     // riepilogo
     $('totale').textContent = Prices.eur(t.valore);
     const note = [(t.carte === 1 ? '1 carta' : t.carte + ' carte') + ', valutate alla media Cardmarket' + (t.aMano ? ' o al prezzo corretto a mano (' + t.aMano + ')' : '') + '.'];
-    if (t.senza < t.carte) note.push('Al prezzo minimo varrebbe ' + Prices.eur(t.minimo) + '.');
+    if (t.minimo > 0) note.push('Ai prezzi minimi varrebbe ' + Prices.eur(t.minimo) + '.');
     if (t.senza) note.push((t.senza === 1 ? '1 carta è senza quotazione e non è contata' : t.senza + ' carte sono senza quotazione e non sono contate') + '.');
     $('totale-nota').textContent = note.join(' ');
     const items = ordina(tutti, prefs.ordine || 'recente');
     if (tabella) disegnaTabella(items, t); else disegnaGalleria(items);
+  }
+
+  // ---------- esporta ----------
+  let excelPromise = null;
+  function caricaExcel() {
+    // la libreria per i file Excel si scarica solo quando serve
+    if (root_ExcelJS()) return Promise.resolve(root_ExcelJS());
+    if (!excelPromise) {
+      excelPromise = new Promise((res, rej) => {
+        const sc = document.createElement('script');
+        sc.src = 'vendor/exceljs/exceljs.min.js';
+        sc.onload = () => (root_ExcelJS() ? res(root_ExcelJS()) : rej(new Error('libreria Excel non valida')));
+        sc.onerror = () => { excelPromise = null; rej(new Error(navigator.onLine ? 'libreria Excel non scaricata' : 'serve la rete per scaricare la libreria Excel la prima volta')); };
+        document.head.appendChild(sc);
+      });
+    }
+    return excelPromise;
+  }
+  function root_ExcelJS() { return window.ExcelJS || null; }
+  const oggi = () => { const d = new Date(), z = (n) => String(n).padStart(2, '0'); return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()); };
+  function scarica(blob, nome) {
+    const url = URL.createObjectURL(blob);
+    const a = el('a', { href: url, download: nome });
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+  function statoEsporta(testo, errore) { const e = $('esporta-stato'); e.textContent = testo; e.className = 'esporta-stato' + (errore ? ' errore' : ''); }
+  async function disegnaEsporta() {
+    const items = await aggiornaConto(), t = totali(items);
+    const vuota = items.length === 0;
+    $('esporta-riepilogo').textContent = vuota ? 'La collezione è vuota: non c\'è ancora niente da esportare.'
+      : (t.carte === 1 ? '1 carta' : t.carte + ' carte') + ', valore ' + Prices.eur(t.valore) + (t.senza ? ', ' + t.senza + ' senza quotazione' : '') + '.';
+    for (const id of ['esporta-excel', 'condividi-excel', 'salva-copia']) $(id).disabled = vuota;
+    // la condivisione di file esiste solo su alcuni telefoni e browser
+    let puo = false;
+    try { puo = !!(navigator.canShare && navigator.canShare({ files: [new File(['x'], 'x.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })] })); } catch (e) { puo = false; }
+    $('condividi-excel').hidden = !puo;
+    statoEsporta('');
+  }
+  async function creaExcel() {
+    const items = ordina(await Store.all(), prefs.ordine || 'recente');
+    if (!items.length) throw new Error('la collezione è vuota');
+    const ExcelJS = await caricaExcel();
+    const r = await Esporta.toXlsxBlob(items, ExcelJS);
+    return { blob: r.blob, totali: r.totali, nome: 'raccoglitore-' + oggi() + '.xlsx' };
+  }
+  async function esportaExcel(condividi) {
+    statoEsporta('Preparo il file Excel');
+    try {
+      const f = await creaExcel();
+      if (condividi) {
+        try {
+          await navigator.share({ files: [new File([f.blob], f.nome, { type: f.blob.type })], title: 'Raccoglitore' });
+          statoEsporta('File Excel condiviso: ' + f.nome);
+        } catch (e) {
+          if (e && e.name === 'AbortError') { statoEsporta(''); return; }
+          throw e;
+        }
+      } else {
+        scarica(f.blob, f.nome);
+        statoEsporta('File Excel scaricato: ' + f.nome + ' (' + f.totali.righe + ' righe, valore ' + Prices.eur(f.totali.valore) + '). Lo trovi tra i download del telefono.');
+      }
+    } catch (e) {
+      console.error(e);
+      statoEsporta('File Excel non creato: ' + (e && e.message ? e.message : e) + '.', true);
+    }
+  }
+  async function salvaCopia() {
+    statoEsporta('Preparo la copia dei dati');
+    try {
+      const items = await Store.all();
+      const blob = await Esporta.toBackupBlob(items);
+      scarica(blob, 'raccoglitore-copia-' + oggi() + '.json');
+      statoEsporta('Copia dei dati scaricata: ' + items.length + (items.length === 1 ? ' carta' : ' carte diverse') + ', ' + (blob.size / 1048576).toFixed(1).replace('.', ',') + ' MB. Conservala fuori dal telefono.');
+    } catch (e) {
+      console.error(e);
+      statoEsporta('Copia dei dati non creata: ' + (e && e.message ? e.message : e) + '.', true);
+    }
+  }
+  async function ripristinaCopia(file) {
+    if (!file) return;
+    statoEsporta('Leggo la copia dei dati');
+    try {
+      const r = await Esporta.readBackup(file, await Store.all());
+      for (const it of r.nuove) await Store.add(it);
+      await disegnaEsporta();
+      const parti = [r.nuove.length === 1 ? '1 carta aggiunta' : r.nuove.length + ' carte aggiunte'];
+      if (r.doppie) parti.push(r.doppie + ' già presenti e lasciate come sono');
+      if (r.scartate) parti.push(r.scartate + ' scartate perché incomplete');
+      statoEsporta('Ripristino completato: ' + parti.join(', ') + '.');
+    } catch (e) {
+      console.error(e);
+      statoEsporta('Ripristino non riuscito: ' + (e && e.message ? e.message : e) + '.', true);
+    }
   }
 
   let inDettaglio = null;
@@ -662,6 +757,10 @@
     $('d-elimina').addEventListener('click', eliminaCorrente);
     $('d-aggiorna').addEventListener('click', aggiornaDettaglio);
     $('aggiorna-tutte').addEventListener('click', aggiornaTutte);
+    $('esporta-excel').addEventListener('click', () => esportaExcel(false));
+    $('condividi-excel').addEventListener('click', () => esportaExcel(true));
+    $('salva-copia').addEventListener('click', salvaCopia);
+    $('input-copia').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; ripristinaCopia(f); });
     $('vista-galleria').addEventListener('click', () => { prefs.vista = 'galleria'; salvaPrefs(); disegnaCollezione(); });
     $('vista-tabella').addEventListener('click', () => { prefs.vista = 'tabella'; salvaPrefs(); disegnaCollezione(); });
     $('ordine').addEventListener('change', (e) => { prefs.ordine = e.target.value; salvaPrefs(); disegnaCollezione(); });

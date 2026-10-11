@@ -155,7 +155,7 @@ select:invalid { color: var(--attenuato); }
 /* Navigazione in basso */
 .navigazione {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
-  display: grid; grid-template-columns: 1fr 1fr;
+  display: grid; grid-template-columns: repeat(3, 1fr);
   background: var(--tasca); border-top: 1.5px solid var(--riga);
   padding-bottom: env(safe-area-inset-bottom);
 }
@@ -237,3 +237,11 @@ input::placeholder { color: var(--attenuato); opacity: 1; font-weight: 400; font
 .tasca-riga.forte { color: var(--inchiostro); font-weight: 800; font-size: 0.82rem; font-stretch: 85%; }
 .tabella th, .tabella td { padding-left: 0.45rem; padding-right: 0.45rem; }
 .tabella th:first-child, .tabella td:first-child { min-width: 7.5rem; max-width: 8.5rem; padding-left: 0; }
+
+/* Esporta */
+.blocco { display: grid; gap: 0.6rem; }
+.blocco-nota { font-size: 0.88rem; color: var(--attenuato); max-width: 60ch; }
+.titolo-secondo { margin-top: 2rem; }
+.esporta-stato { font-size: 0.95rem; margin-bottom: 0.9rem; }
+#esporta-stato { margin-top: 1rem; font-weight: 600; }
+#esporta-stato.errore { color: var(--pericolo); }

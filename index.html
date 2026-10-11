@@ -140,11 +140,32 @@
       <table id="tabella" class="tabella"></table>
     </div>
   </section>
+  <!-- Esporta -->
+  <section id="vista-esporta" class="vista" hidden>
+    <h2>Esporta la collezione</h2>
+    <p class="esporta-stato" id="esporta-riepilogo"></p>
+    <div class="blocco">
+      <button type="button" class="pulsante pulsante-primario" id="esporta-excel">Scarica il file Excel</button>
+      <button type="button" class="pulsante pulsante-secondario" id="condividi-excel" hidden>Condividi il file Excel</button>
+      <p class="blocco-nota">Un foglio con tutte le carte, i tre prezzi e i totali, più un foglio di riepilogo. Si apre con Excel, Fogli Google e LibreOffice.</p>
+    </div>
+    <h2 class="titolo-secondo">Copia di sicurezza</h2>
+    <div class="blocco">
+      <button type="button" class="pulsante pulsante-secondario" id="salva-copia">Salva una copia dei dati</button>
+      <label class="pulsante pulsante-secondario">
+        <input type="file" id="input-copia" accept="application/json,.json" hidden>
+        Ripristina da una copia
+      </label>
+      <p class="blocco-nota">La collezione vive solo nella memoria di questo telefono: se cancelli i dati del browser o cambi telefono, si perde. La copia contiene carte, prezzi e foto. Il ripristino aggiunge le carte mancanti e non tocca quelle già presenti.</p>
+    </div>
+    <p class="esporta-stato" id="esporta-stato" role="status"></p>
+  </section>
 </main>
 
 <nav class="navigazione" aria-label="Sezioni">
   <button type="button" data-vista="scansiona" aria-current="page">Scansiona</button>
   <button type="button" data-vista="collezione">Collezione</button>
+  <button type="button" data-vista="esporta">Esporta</button>
 </nav>
 
 <dialog id="dettaglio" class="dettaglio">
@@ -184,6 +205,7 @@
 <script src="js/ocr-engine.js"></script>
 <script src="js/db.js"></script>
 <script src="js/prices.js"></script>
+<script src="js/export.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
