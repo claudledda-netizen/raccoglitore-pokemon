@@ -46,7 +46,8 @@
   }
 
   // ---------- immagini ----------
-  function immagineUfficiale(card, lang, qualita) {
+  // ripiego: funzione che restituisce cosa mostrare se l'immagine ufficiale non si carica
+  function immagineUfficiale(card, lang, qualita, ripiego) {
     // provo la lingua della carta, poi l'inglese, poi un segnaposto con il nome
     const prove = [];
     if (lang && card.langs.indexOf(lang) >= 0) prove.push(lang);
@@ -57,7 +58,7 @@
     let i = 0;
     const prossima = () => {
       if (i >= prove.length) {
-        box.replaceChildren(el('div', { class: 'segnaposto', text: 'Immagine non disponibile' }));
+        box.replaceChildren((ripiego && ripiego()) || el('div', { class: 'segnaposto', text: 'Immagine non disponibile' }));
         return;
       }
       img.src = Match.imageUrl(card, prove[i++], qualita || 'low');
@@ -299,8 +300,12 @@
     g.replaceChildren();
     items.sort((a, b) => (b.addedAt || '').localeCompare(a.addedAt || ''));
     for (const it of items) {
+      // nella collezione si vede l'immagine ufficiale; la foto scattata fa da ripiego
+      // (carta non più in elenco, immagine mancante, telefono senza rete) e resta nel dettaglio
       const foto = fotoDi(it);
-      const img = foto ? el('img', { src: foto, alt: '', loading: 'lazy' }) : el('img', { alt: '', src: 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==' });
+      const card = IX ? IX.cards.find((c) => c.id === it.cardId) : null;
+      const conFoto = () => foto ? el('img', { src: foto, alt: '' }) : null;
+      const img = card ? immagineUfficiale(card, it.lang, 'low', conFoto) : (conFoto() || el('div', { class: 'segnaposto', text: it.name }));
       g.appendChild(el('button', { type: 'button', class: 'tasca', 'aria-label': it.name + ', apri i dettagli', onclick: () => apriDettaglio(it.id) }, [
         img,
         el('span', { class: 'tasca-nome', text: it.name }),

@@ -147,6 +147,7 @@ select:invalid { color: var(--attenuato); }
 .griglia { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; }
 .tasca { display: grid; gap: 0.3rem; padding: 0; background: none; border: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
 .tasca img { width: 100%; aspect-ratio: 63 / 88; object-fit: cover; border-radius: var(--raggio-carta); background: var(--riga); }
+.tasca .segnaposto { aspect-ratio: 63 / 88; border-radius: var(--raggio-carta); background: var(--riga); font-size: 0.75rem; }
 .tasca-nome { font-size: 0.8rem; font-weight: 650; line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .tasca-info { font-size: 0.72rem; color: var(--attenuato); font-variant-numeric: tabular-nums; }
 .vuoto { display: grid; gap: 1rem; padding-top: 1.5rem; }
