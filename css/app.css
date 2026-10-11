@@ -202,3 +202,38 @@ input::placeholder { color: var(--attenuato); opacity: 1; font-weight: 400; font
 .tasca-prezzo { font-size: 0.85rem; font-weight: 800; font-stretch: 78%; font-variant-numeric: tabular-nums; }
 .tasca-prezzo.assente { font-weight: 500; font-stretch: 100%; font-size: 0.72rem; color: var(--attenuato); }
 .dettaglio { overflow-y: auto; }
+
+/* Riepilogo del valore */
+.testata-valore { font-weight: 800; font-stretch: 78%; color: #ffd166; margin-left: 0.5rem; font-size: 1.05rem; }
+.riepilogo { margin-bottom: 1.1rem; padding-bottom: 1rem; border-bottom: 1.5px solid var(--riga); }
+.riepilogo-nome { font-size: 0.9rem; font-weight: 600; color: var(--attenuato); }
+.riepilogo-totale { font-size: 2.6rem; font-weight: 850; font-stretch: 72%; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.riepilogo-nota { margin-top: 0.3rem; font-size: 0.85rem; color: var(--attenuato); max-width: 60ch; }
+.scelta-vista { display: grid; grid-template-columns: 1fr 1fr; border: 1.5px solid var(--inchiostro); border-radius: var(--raggio); overflow: hidden; }
+.scelta-vista button { min-height: 2.75rem; border: 0; background: transparent; color: var(--inchiostro); font: inherit; font-weight: 650; cursor: pointer; }
+.scelta-vista button[aria-pressed="true"] { background: var(--inchiostro); color: var(--carta); }
+.scelta-vista button:focus-visible { outline: 3px solid var(--cartellino); outline-offset: -3px; }
+.ordine { display: grid; gap: 0.3rem; font-size: 0.9rem; font-weight: 600; }
+
+/* Tabella: scorre in orizzontale dentro il suo riquadro, la colonna del nome resta ferma */
+.tabella-box { overflow-x: auto; margin: 0 -1rem; padding: 0 1rem; -webkit-overflow-scrolling: touch; }
+.tabella-box:focus-visible { outline: 3px solid var(--cartellino); outline-offset: -3px; }
+.tabella { border-collapse: collapse; width: max-content; min-width: 100%; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.tabella th, .tabella td { padding: 0.55rem 0.6rem; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--riga); }
+.tabella th { font-size: 0.75rem; font-weight: 700; color: var(--attenuato); vertical-align: bottom; background: var(--carta); }
+.tabella th:first-child, .tabella td:first-child { text-align: left; position: sticky; left: 0; background: var(--carta); white-space: normal; min-width: 8.5rem; max-width: 10rem; box-shadow: 1px 0 0 var(--riga); }
+.tabella td.testo, .tabella th.testo { text-align: left; }
+.tabella tbody tr { cursor: pointer; }
+.tabella tbody tr:active td { background: var(--tasca); }
+.tabella .t-nome { display: block; font-weight: 700; font-size: 0.9rem; line-height: 1.2; color: var(--inchiostro); background: none; border: 0; padding: 0; font-family: inherit; text-align: left; cursor: pointer; }
+.tabella .t-sotto { display: block; font-size: 0.72rem; color: var(--attenuato); line-height: 1.25; }
+.tabella .t-valore { font-weight: 800; font-stretch: 80%; font-size: 0.95rem; }
+.tabella tfoot td { font-weight: 800; border-bottom: 0; border-top: 2px solid var(--inchiostro); }
+.tabella th button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 0.2em; }
+.tabella .assente { color: var(--attenuato); font-weight: 400; }
+
+.tasca-prezzi { display: grid; gap: 0.05rem; font-size: 0.72rem; font-variant-numeric: tabular-nums; color: var(--attenuato); }
+.tasca-riga { display: flex; justify-content: space-between; gap: 0.3rem; white-space: nowrap; }
+.tasca-riga.forte { color: var(--inchiostro); font-weight: 800; font-size: 0.82rem; font-stretch: 85%; }
+.tabella th, .tabella td { padding-left: 0.45rem; padding-right: 0.45rem; }
+.tabella th:first-child, .tabella td:first-child { min-width: 7.5rem; max-width: 8.5rem; padding-left: 0; }

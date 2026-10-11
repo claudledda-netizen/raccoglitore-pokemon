@@ -13,7 +13,7 @@
 <body>
 <header class="testata">
   <h1>Raccoglitore</h1>
-  <p class="testata-conto" id="conto"></p>
+  <p class="testata-conto"><span id="conto"></span> <span id="conto-valore" class="testata-valore"></span></p>
 </header>
 
 <main>
@@ -113,11 +113,32 @@
       <p>Nessuna carta ancora. Fotografa la prima per iniziare il raccoglitore.</p>
       <button type="button" class="pulsante pulsante-primario" id="vai-scansiona">Fotografa una carta</button>
     </div>
+    <div class="riepilogo" id="riepilogo" hidden>
+      <p class="riepilogo-nome">Valore della collezione</p>
+      <p class="riepilogo-totale" id="totale"></p>
+      <p class="riepilogo-nota" id="totale-nota"></p>
+    </div>
     <div class="strumenti" id="strumenti" hidden>
+      <div class="scelta-vista" role="group" aria-label="Come mostrare la collezione">
+        <button type="button" id="vista-galleria" aria-pressed="true">Galleria</button>
+        <button type="button" id="vista-tabella" aria-pressed="false">Tabella</button>
+      </div>
+      <label class="ordine">Ordina per
+        <select id="ordine">
+          <option value="recente">Aggiunta più recente</option>
+          <option value="nome">Nome</option>
+          <option value="espansione">Espansione e numero</option>
+          <option value="valore-alto">Valore più alto</option>
+          <option value="valore-basso">Valore più basso</option>
+        </select>
+      </label>
       <button type="button" class="pulsante pulsante-secondario" id="aggiorna-tutte">Aggiorna tutte le quotazioni</button>
       <p class="strumenti-stato" id="aggiorna-stato" role="status"></p>
     </div>
     <div id="griglia" class="griglia"></div>
+    <div id="tabella-box" class="tabella-box" hidden tabindex="0" role="region" aria-label="Tabella della collezione, scorre in orizzontale">
+      <table id="tabella" class="tabella"></table>
+    </div>
   </section>
 </main>
 

@@ -317,7 +317,7 @@
     await aggiornaConto();
     avviso('Aggiunta alla collezione: ' + item.name);
     // se la quotazione non era ancora arrivata la recupero in sottofondo
-    if (!item.prices) aggiornaPrezziDi(item, false).catch(() => {});
+    if (!item.prices) aggiornaPrezziDi(item, false).then(aggiornaConto).catch(() => {});
     mostra('scansiona');
   }
 
@@ -361,19 +361,65 @@
     if (!urlFoto.has(item.id)) urlFoto.set(item.id, URL.createObjectURL(item.photo));
     return urlFoto.get(item.id);
   }
+  // Totali della collezione: valore (prezzo a mano o media, per quantità) e totale al minimo
+  function totali(items) {
+    let carte = 0, valore = 0, minimo = 0, senza = 0, aMano = 0;
+    for (const it of items) {
+      const q = it.qty || 1, v = Prices.value(it);
+      carte += q;
+      if (v.eur === null) { senza += q; continue; }
+      valore += v.eur * q;
+      if (v.fonte === 'manuale') aMano += q;
+      const m = it.prices && it.prices.eur && it.prices.eur.min !== null ? it.prices.eur.min : v.eur;
+      minimo += Math.min(m, v.eur) * q;
+    }
+    return { carte, valore, minimo, senza, aMano };
+  }
   async function aggiornaConto() {
     const items = await Store.all();
-    const tot = items.reduce((s, i) => s + (i.qty || 1), 0);
-    $('conto').textContent = tot === 0 ? '' : tot === 1 ? '1 carta' : tot + ' carte';
+    const t = totali(items);
+    $('conto').textContent = t.carte === 0 ? '' : t.carte === 1 ? '1 carta' : t.carte + ' carte';
+    $('conto-valore').textContent = t.carte && t.senza < t.carte ? Prices.eur(t.valore) : '';
     return items;
   }
-  async function disegnaCollezione() {
-    const items = await aggiornaConto();
-    $('collezione-vuota').hidden = items.length > 0;
-    $('strumenti').hidden = items.length === 0;
+
+  const SIGLA_VARIANTE = { normal: 'Normale', holo: 'Holo', reverse: 'Reverse', lenticular: 'Lenticolare', metal: 'Metallo' };
+  function ordina(items, criterio) {
+    const tot = (it) => { const v = Prices.value(it); return v.eur === null ? null : v.eur * (it.qty || 1); };
+    const perValore = (dir) => (a, b) => {
+      const x = tot(a), y = tot(b);
+      if (x === null && y === null) return 0;
+      if (x === null) return 1;   // le carte senza quotazione vanno sempre in fondo
+      if (y === null) return -1;
+      return dir * (x - y);
+    };
+    const per = {
+      recente: (a, b) => (b.addedAt || '').localeCompare(a.addedAt || ''),
+      nome: (a, b) => a.name.localeCompare(b.name, 'it') || String(a.localId).localeCompare(String(b.localId), 'it', { numeric: true }),
+      espansione: (a, b) => (a.setName || '').localeCompare(b.setName || '', 'it') || String(a.localId).localeCompare(String(b.localId), 'it', { numeric: true }),
+      'valore-alto': perValore(-1),
+      'valore-basso': perValore(1)
+    };
+    return items.slice().sort(per[criterio] || per.recente);
+  }
+
+  // Sotto ogni carta della galleria: minimo, media e massimo, più il prezzo a mano se c'è
+  function prezziTasca(it, v) {
+    const pr = it.prices;
+    if (v.eur === null && !(pr && (pr.eur || pr.usd))) return el('span', { class: 'tasca-prezzo assente', text: 'senza quotazione' });
+    const riga = (nome, valore, forte) => el('span', { class: 'tasca-riga' + (forte ? ' forte' : '') }, [el('span', { text: nome }), el('span', { text: valore })]);
+    const righe = [
+      riga('Min', Prices.eur(pr && pr.eur ? pr.eur.min : null)),
+      riga('Media', Prices.eur(pr && pr.eur ? pr.eur.media : null), v.fonte !== 'manuale'),
+      riga('Max', Prices.usd(pr && pr.usd ? pr.usd.max : null))
+    ];
+    if (v.fonte === 'manuale') righe.push(riga('A mano', Prices.eur(v.eur), true));
+    return el('span', { class: 'tasca-prezzi' }, righe);
+  }
+
+  function disegnaGalleria(items) {
     const g = $('griglia');
     g.replaceChildren();
-    items.sort((a, b) => (b.addedAt || '').localeCompare(a.addedAt || ''));
     for (const it of items) {
       // nella collezione si vede l'immagine ufficiale; la foto scattata fa da ripiego
       // (carta non più in elenco, immagine mancante, telefono senza rete) e resta nel dettaglio
@@ -381,13 +427,85 @@
       const card = IX ? IX.cards.find((c) => c.id === it.cardId) : null;
       const conFoto = () => foto ? el('img', { src: foto, alt: '' }) : null;
       const img = card ? immagineUfficiale(card, it.lang, 'low', conFoto) : (conFoto() || el('div', { class: 'segnaposto', text: it.name }));
+      const v = Prices.value(it);
       g.appendChild(el('button', { type: 'button', class: 'tasca', 'aria-label': it.name + ', apri i dettagli', onclick: () => apriDettaglio(it.id) }, [
         img,
         el('span', { class: 'tasca-nome', text: it.name }),
         el('span', { class: 'tasca-info', text: it.localId + (it.setTotal ? '/' + it.setTotal : '') + (it.qty > 1 ? '  ×' + it.qty : '') }),
-        (() => { const v = Prices.value(it); return el('span', { class: 'tasca-prezzo' + (v.eur === null ? ' assente' : ''), text: v.eur === null ? 'senza quotazione' : Prices.eur(v.eur) }); })()
+        prezziTasca(it, v)
       ]));
     }
+  }
+
+  function disegnaTabella(items, t) {
+    const tab = $('tabella');
+    const th = (testo, cls, criteri) => {
+      const c = el('th', { scope: 'col', class: cls || '' });
+      if (!criteri) { c.textContent = testo; return c; }
+      // intestazioni ordinabili: un tocco ordina, un secondo tocco inverte dove ha senso
+      const attivo = criteri.indexOf(prefs.ordine) >= 0;
+      if (attivo) c.setAttribute('aria-sort', prefs.ordine === 'valore-alto' ? 'descending' : 'ascending');
+      c.appendChild(el('button', { type: 'button', text: testo, onclick: () => {
+        const i = criteri.indexOf(prefs.ordine);
+        prefs.ordine = criteri[(i + 1) % criteri.length]; salvaPrefs(); disegnaCollezione();
+      } }));
+      return c;
+    };
+    const testa = el('thead', null, [el('tr', null, [
+      th('Carta', '', ['nome']), th('Valore', '', ['valore-alto', 'valore-basso']), th('Q.tà'),
+      th('Minimo'), th('Media'), th('Massimo'), th('Variante', 'testo'), th('Lingua', 'testo'), th('Cond.', 'testo')
+    ])]);
+    const corpo = el('tbody');
+    for (const it of items) {
+      const pr = it.prices, v = Prices.value(it), q = it.qty || 1;
+      const num = (testo, vuoto) => el('td', { class: vuoto ? 'assente' : '', text: testo });
+      const valore = el('td', { class: v.eur === null ? 'assente' : 't-valore' });
+      valore.appendChild(document.createTextNode(v.eur === null ? 'n.d.' : Prices.eur(v.eur * q)));
+      if (v.fonte === 'manuale') valore.appendChild(el('span', { class: 't-sotto', text: 'prezzo a mano' }));
+      corpo.appendChild(el('tr', { onclick: () => apriDettaglio(it.id) }, [
+        el('td', null, [
+          el('button', { type: 'button', class: 't-nome', text: it.name, 'aria-label': it.name + ', apri i dettagli' }),
+          el('span', { class: 't-sotto', text: it.localId + (it.setTotal ? '/' + it.setTotal : '') + ' ' + (it.setName || '') })
+        ]),
+        valore,
+        el('td', { text: String(q) }),
+        num(Prices.eur(pr && pr.eur ? pr.eur.min : null), !(pr && pr.eur && pr.eur.min !== null)),
+        num(Prices.eur(pr && pr.eur ? pr.eur.media : null), !(pr && pr.eur && pr.eur.media !== null)),
+        num(Prices.usd(pr && pr.usd ? pr.usd.max : null), !(pr && pr.usd && pr.usd.max !== null)),
+        el('td', { class: 'testo', text: (SIGLA_VARIANTE[it.variant] || it.variant || '') + (it.edition === 'prima' ? ', 1ª ed.' : '') }),
+        el('td', { class: 'testo', text: (it.lang || '').toUpperCase() }),
+        el('td', { class: 'testo', text: it.condition || '' })
+      ]));
+    }
+    const piede = el('tfoot', null, [el('tr', null, [
+      el('td', { text: 'Totale' }), el('td', { class: 't-valore', text: Prices.eur(t.valore) }), el('td', { text: String(t.carte) }),
+      el('td', { text: Prices.eur(t.minimo) }), el('td'), el('td'), el('td'), el('td'), el('td')
+    ])]);
+    tab.replaceChildren(testa, corpo, piede);
+  }
+
+  async function disegnaCollezione() {
+    const tutti = await aggiornaConto();
+    const t = totali(tutti);
+    const vuota = tutti.length === 0;
+    $('collezione-vuota').hidden = !vuota;
+    $('strumenti').hidden = vuota;
+    $('riepilogo').hidden = vuota;
+    const tabella = prefs.vista === 'tabella';
+    $('griglia').hidden = vuota || tabella;
+    $('tabella-box').hidden = vuota || !tabella;
+    if (vuota) { $('griglia').replaceChildren(); $('tabella').replaceChildren(); return; }
+    $('vista-galleria').setAttribute('aria-pressed', tabella ? 'false' : 'true');
+    $('vista-tabella').setAttribute('aria-pressed', tabella ? 'true' : 'false');
+    $('ordine').value = prefs.ordine || 'recente';
+    // riepilogo
+    $('totale').textContent = Prices.eur(t.valore);
+    const note = [(t.carte === 1 ? '1 carta' : t.carte + ' carte') + ', valutate alla media Cardmarket' + (t.aMano ? ' o al prezzo corretto a mano (' + t.aMano + ')' : '') + '.'];
+    if (t.senza < t.carte) note.push('Al prezzo minimo varrebbe ' + Prices.eur(t.minimo) + '.');
+    if (t.senza) note.push((t.senza === 1 ? '1 carta è senza quotazione e non è contata' : t.senza + ' carte sono senza quotazione e non sono contate') + '.');
+    $('totale-nota').textContent = note.join(' ');
+    const items = ordina(tutti, prefs.ordine || 'recente');
+    if (tabella) disegnaTabella(items, t); else disegnaGalleria(items);
   }
 
   let inDettaglio = null;
@@ -544,6 +662,9 @@
     $('d-elimina').addEventListener('click', eliminaCorrente);
     $('d-aggiorna').addEventListener('click', aggiornaDettaglio);
     $('aggiorna-tutte').addEventListener('click', aggiornaTutte);
+    $('vista-galleria').addEventListener('click', () => { prefs.vista = 'galleria'; salvaPrefs(); disegnaCollezione(); });
+    $('vista-tabella').addEventListener('click', () => { prefs.vista = 'tabella'; salvaPrefs(); disegnaCollezione(); });
+    $('ordine').addEventListener('change', (e) => { prefs.ordine = e.target.value; salvaPrefs(); disegnaCollezione(); });
     for (const id of ['d-prezzo', 'd-quantita']) $(id).addEventListener('input', () => disegnaQuotazioneDettaglio());
     $('f-variante').addEventListener('change', quotazioneConferma);
     $('f-edizione').addEventListener('change', quotazioneConferma);
