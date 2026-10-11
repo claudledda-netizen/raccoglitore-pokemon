@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14213d">
+<title>Raccoglitore</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icona-192.png">
+<link rel="apple-touch-icon" href="icons/icona-192.png">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header class="testata">
+  <h1>Raccoglitore</h1>
+  <p class="testata-conto" id="conto"></p>
+</header>
+
+<main>
+  <!-- Scansione -->
+  <section id="vista-scansiona" class="vista">
+    <div class="scatto">
+      <label class="pulsante pulsante-primario pulsante-grande">
+        <input type="file" id="input-fotocamera" accept="image/*" capture="environment" hidden>
+        Fotografa una carta
+      </label>
+      <label class="pulsante pulsante-secondario">
+        <input type="file" id="input-galleria" accept="image/*" hidden>
+        Scegli una foto dalla galleria
+      </label>
+      <button type="button" class="pulsante pulsante-testo" id="apri-ricerca">Cerca una carta a mano</button>
+    </div>
+    <p class="consiglio">Appoggia la carta su un piano a tinta unita e inquadrala intera, senza riflessi sul nome e sul numero in basso.</p>
+    <div class="lettore" id="lettore" hidden>
+      <p id="lettore-testo"></p>
+      <div class="barra"><div class="barra-pieno" id="lettore-barra"></div></div>
+    </div>
+  </section>
+
+  <!-- Lettura in corso -->
+  <section id="vista-lettura" class="vista" hidden>
+    <div class="lettura">
+      <img id="lettura-foto" alt="La foto appena scattata">
+      <p class="lettura-stato" id="lettura-stato" role="status">Leggo la carta</p>
+    </div>
+  </section>
+
+  <!-- Conferma -->
+  <section id="vista-conferma" class="vista" hidden>
+    <h2 id="conferma-titolo"></h2>
+    <div class="confronto" id="confronto">
+      <figure>
+        <img id="conferma-foto" alt="La tua foto">
+        <figcaption>La tua foto</figcaption>
+      </figure>
+      <figure>
+        <div id="conferma-ufficiale" class="ufficiale"></div>
+        <figcaption>Carta trovata</figcaption>
+      </figure>
+    </div>
+    <div class="scheda" id="scheda"></div>
+    <div id="candidati" class="candidati"></div>
+    <button type="button" class="pulsante pulsante-testo" id="altra-carta">Non è questa: cerca a mano</button>
+
+    <form id="modulo" class="modulo" autocomplete="off">
+      <label>Lingua
+        <select id="f-lingua" required></select>
+      </label>
+      <label>Variante
+        <select id="f-variante" required></select>
+      </label>
+      <label id="riga-edizione" hidden>Edizione
+        <select id="f-edizione">
+          <option value="illimitata">Illimitata</option>
+          <option value="prima">Prima edizione</option>
+        </select>
+      </label>
+      <label>Condizione
+        <select id="f-condizione" required></select>
+      </label>
+      <label>Quantità
+        <select id="f-quantita"></select>
+      </label>
+      <div class="azioni">
+        <button type="submit" class="pulsante pulsante-primario" id="salva">Aggiungi alla collezione</button>
+        <button type="button" class="pulsante pulsante-secondario" id="annulla">Scarta la foto</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- Ricerca manuale -->
+  <section id="vista-ricerca" class="vista" hidden>
+    <h2>Cerca una carta</h2>
+    <form class="modulo" id="modulo-ricerca" autocomplete="off">
+      <label>Espansione
+        <select id="r-espansione"><option value="">Scegli l'espansione</option></select>
+      </label>
+      <label>Numero
+        <select id="r-numero" disabled><option value="">Scegli prima l'espansione</option></select>
+      </label>
+      <label>Oppure scrivi il nome o il numero
+        <input type="search" id="r-testo" placeholder="Miraidon, 122/162" enterkeyhint="search">
+      </label>
+    </form>
+    <div id="r-risultati" class="candidati"></div>
+    <button type="button" class="pulsante pulsante-secondario" id="r-indietro">Torna indietro</button>
+  </section>
+
+  <!-- Collezione -->
+  <section id="vista-collezione" class="vista" hidden>
+    <div id="collezione-vuota" class="vuoto" hidden>
+      <p>Nessuna carta ancora. Fotografa la prima per iniziare il raccoglitore.</p>
+      <button type="button" class="pulsante pulsante-primario" id="vai-scansiona">Fotografa una carta</button>
+    </div>
+    <div id="griglia" class="griglia"></div>
+  </section>
+</main>
+
+<nav class="navigazione" aria-label="Sezioni">
+  <button type="button" data-vista="scansiona" aria-current="page">Scansiona</button>
+  <button type="button" data-vista="collezione">Collezione</button>
+</nav>
+
+<dialog id="dettaglio" class="dettaglio">
+  <form method="dialog" id="dettaglio-modulo" class="modulo">
+    <div class="dettaglio-testa">
+      <img id="d-foto" alt="">
+      <div>
+        <h2 id="d-nome"></h2>
+        <p id="d-info"></p>
+      </div>
+    </div>
+    <label>Lingua <select id="d-lingua"></select></label>
+    <label>Variante <select id="d-variante"></select></label>
+    <label>Condizione <select id="d-condizione"></select></label>
+    <label>Quantità <select id="d-quantita"></select></label>
+    <div class="azioni">
+      <button type="submit" value="salva" class="pulsante pulsante-primario">Salva le modifiche</button>
+      <button type="submit" value="chiudi" class="pulsante pulsante-secondario" formnovalidate>Chiudi</button>
+      <button type="button" class="pulsante pulsante-pericolo" id="d-elimina">Togli dalla collezione</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="avviso" class="avviso" role="status" hidden></div>
+
+<script src="vendor/ort/ort.wasm.min.js"></script>
+<script src="vendor/ocr/esearch-ocr.js"></script>
+<script src="js/vision.js"></script>
+<script src="js/match.js"></script>
+<script src="js/recog.js"></script>
+<script src="js/ocr-engine.js"></script>
+<script src="js/db.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
